@@ -1,41 +1,57 @@
 # SOFTLAND Business Management System
 
-Flutter cross-platform starter for Windows 10/11 and iPhone 12 (iOS), based on the user's supplied SOFTLAND references.
+Flutter cross-platform application for Windows 10/11 and iPhone 12 (iOS), following the supplied SOFTLAND brand and layout references.
 
-## Implemented in this revision
-- SOFTLAND home dashboard, brand banner and motto.
-- Left navigation drawer with all 12 requested sections and close action.
-- Dedicated data-entry fields for Employees, Customers, Customers Paying Memo, Monthly Salary, Daily Income Vouchers, Daily Expense Vouchers, Letterheads and Contact Information.
-- Every section has Add, Edit, Remove, Save, Print and Share actions.
-- Local on-device persistence using SharedPreferences.
-- Employee record limit of 10.
-- Monthly Salary form fields include Basic Salary, attendance counts, overtime hours, all specified allowances and bonuses, manually entered overtime amount, Advance, Deduction, Employee Signature, Authorized Signature and Company Stamp.
-- Total Amount is calculated as salary components plus manually entered overtime amount.
-- Net Payable is calculated as Total Amount minus Advance minus Deduction.
-- Attendance counts do not change Basic Salary.
-- Weekly, Monthly and Annual report pages show a current aggregate snapshot of saved employee, customer, income, expense and salary data.
-- Legacy records from the first starter version are read during migration.
+## Implemented source
 
-## Important limitations
-- The salary calculation currently treats every listed allowance and bonus as an amount included in Total Amount. Confirm any company-specific bonus eligibility/proration rules before production payroll use.
-- Weekly/Monthly/Annual reports currently show aggregate totals; date-filtered report periods and detailed ledgers are not yet implemented.
-- Contact Information and Letterheads have dedicated data-entry fields, but branded letterhead composition and signature/stamp image handling remain future work.
-- Data is stored locally on the device. Cloud sync, multi-user access, encryption policy, database backup/restore and role permissions are not implemented.
-- This environment does not have Flutter or Dart installed, so the code has not been compiled or run here. Platform builds and device testing remain outstanding.
+- SOFTLAND dashboard with company name, working area and motto.
+- Left navigation drawer with all 12 requested sections and a close action.
+- Common Add, Edit, Remove, Save, Print and Share toolbar on every data section.
+- Local on-device persistence with SharedPreferences.
+- Employee profile limit: 10.
+- Employee ID is automatically copied from the employee mobile number; duplicate mobile-based IDs are rejected.
+- Customer ID is automatically copied from the customer mobile number; duplicate mobile-based IDs are rejected.
+- Customer Paying Memo has an automatically generated monthly sequence number (CPM-YYYYMM-0001), customer lookup, previous/current payment, automatically calculated total paid and remaining balance.
+- Monthly Salary can select a saved employee and prefill employee identity, contact, designation and basic salary.
+- Salary includes Basic Salary, attendance, manual overtime hours and amount, house rent, medical, conveyance, special allowance, Eid-ul-Fitr bonus, Eid-ul-Azha bonus, yearly bonus, advance and deduction.
+- Attendance never reduces Basic Salary.
+- Total Amount is the sum of the salary components plus the manually entered overtime amount.
+- Net Payable is Total Amount minus Advance and Deduction.
+- Dedicated A4 SOFTLAND salary slip with employee details, attendance, earnings, deductions, net payable, signature lines and company-stamp box.
+- Salary print outputs the selected employee's slip, or all salary records when none is selected.
+- Weekly, Monthly and Annual report pages currently show aggregate totals.
+
+## Tests added
+
+test/payroll_calculator_test.dart covers:
+- Attendance does not reduce Basic Salary.
+- Manual overtime and all specified salary components are included.
+- Advance and Deduction are subtracted from Total Amount.
+- Comma-separated monetary values are parsed.
+
+## Current limitations
+
+- Flutter and Dart were not available in the authoring environment. The source and tests have been committed, but compilation, test execution and device testing have not been performed.
+- Weekly/Monthly/Annual reports still need date-filtered periods and detailed ledgers.
+- Letterheads need full branded composition and signature/stamp image support.
+- Salary slip signature and stamp fields currently accept typed text and provide printable blank areas; image upload is not implemented.
+- Data is local to each device. Cloud sync, multi-user access, automated backups, role permissions and a formal encryption/retention policy remain future work.
+- Windows executable and signed iOS IPA have not been built.
 
 ## Run on Windows
-Install Flutter SDK and Windows desktop development prerequisites, then:
-```bash
+
+Install Flutter and Windows desktop prerequisites, then:
+
 flutter pub get
+flutter test
 flutter run -d windows
 flutter build windows
-```
 
 ## Run/build for iPhone 12
-Use a Mac with Xcode and an Apple signing setup:
-```bash
+
+Use macOS with Xcode and the required Apple signing setup:
+
 flutter pub get
+flutter test
 flutter run -d ios
 flutter build ipa
-```
-A signed iOS IPA requires the appropriate Apple developer signing configuration.
