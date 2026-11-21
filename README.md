@@ -38,18 +38,23 @@ test/payroll_calculator_test.dart covers:
 - Data is local to each device. Cloud sync, multi-user access, automated backups, role permissions and a formal encryption/retention policy remain future work.
 - Windows executable and signed iOS IPA have not been built.
 
-## Run on Windows
+## Generate platform runners and run on Windows
 
-Install Flutter and Windows desktop prerequisites, then:
+This repository currently contains the shared Flutter source but does not yet include generated Windows/iOS runner folders. On a machine with Flutter installed, run this once from the repository root:
+
+flutter create --platforms=windows,ios .
+
+Then install Flutter's Windows desktop prerequisites and run:
 
 flutter pub get
+flutter analyze
 flutter test
 flutter run -d windows
 flutter build windows
 
 ## Run/build for iPhone 12
 
-Use macOS with Xcode and the required Apple signing setup:
+Use macOS with Xcode and the required Apple signing setup. If the platform runners have not yet been generated, first run `flutter create --platforms=windows,ios .` from the project root. Then run:
 
 flutter pub get
 flutter test
