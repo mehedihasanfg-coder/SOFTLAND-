@@ -1541,7 +1541,7 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
                       onChanged: (value) {
                         if (salary && !readOnly) _recalculate();
                         if (memo && [
-                          'Total Price', 'Previous Paid', 'Current Paid',
+                          'Customer ID', 'Total Price', 'Previous Paid', 'Current Paid',
                         ].contains(field)) {
                           _recalculateMemo();
                         }
@@ -1570,6 +1570,7 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
                         final requiredFields = <String>{
                           'Employee Name', 'Employee ID', 'Customer Name',
                           'Customer ID', 'Memo Number', 'Voucher Number',
+                          'Total Price', 'Current Paid',
                         };
                         if ((requiredFields.contains(field) ||
                             ((employeeForm || customerForm) &&
