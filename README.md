@@ -7,7 +7,10 @@ Flutter cross-platform application for Windows 10/11 and iPhone 12 (iOS), follow
 - SOFTLAND dashboard with company name, working area and motto.
 - Left navigation drawer with all 12 requested sections and a close action.
 - Common Add, Edit, Remove, Save, Print and Share toolbar on every data section.
-- Local on-device persistence with SharedPreferences.
+- Section-based CSV persistence: Employees.csv, Customers.csv, Customers_Paying_Memo.csv, Monthly_Salary.csv, Daily_Income_Vouchers.csv, Daily_Expense_Vouchers.csv, Letterheads.csv and Contact_Information.csv, plus report-section CSV files.
+- Windows storage uses D:\\SOFTLAND first, then the first writable non-C drive from E: through Z:. The app never writes business records to C:. If no non-C drive is writable, it shows the required one-button error and closes after OK.
+- iPhone storage uses the app Documents/SOFTLAND folder. Enable the two iOS file-sharing Info.plist keys in the setup guide so the CSVs appear in Files and can be opened with iSpreadsheet.
+- Existing SharedPreferences records are migrated once into CSV files; ongoing business records are no longer saved to SharedPreferences.
 - Employee profile limit: 10.
 - Employee ID is automatically copied from the employee mobile number; duplicate mobile-based IDs are rejected.
 - Customer ID is automatically copied from the customer mobile number; duplicate mobile-based IDs are rejected.
@@ -32,6 +35,7 @@ Test coverage includes:
 - `test/payroll_calculator_test.dart`: attendance does not reduce Basic Salary; manual overtime and all specified salary components are included; Advance and Deduction are subtracted; comma-separated monetary values are parsed.
 - `test/payment_memo_calculator_test.dart`: customer-specific previous-payment carry-forward; editing an earlier memo excludes later payments from its previous-paid amount; total and remaining balance calculations; recalculation of later ledger entries; legacy memo compatibility.
 - `test/business_reporting_test.dart`: supported date formats, inclusive report boundaries and date-filtered amount totals.
+- `test/records_storage_csv_test.dart`: CSV round-trip preserves leading-zero mobile numbers and commas in names.
 
 ## Current limitations
 
@@ -41,6 +45,8 @@ Test coverage includes:
 - Letterheads need full branded composition and signature/stamp image support.
 - Salary slip signature and stamp fields currently accept typed text and provide printable blank areas; image upload is not implemented.
 - Data is local to each device. Cloud sync, multi-user access, automated backups, role permissions and a formal encryption/retention policy remain future work.
+- The Windows PowerShell drive preflight is provided at `scripts/check_database_drive.ps1`, but it has not yet been wired into a finished installer. The app's own startup check is implemented; a production installer must invoke the preflight before installing.
+- iOS Files visibility requires the `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace` keys described in `docs/ios_files_app_setup.md`. The iOS runner folder has not yet been generated in this repository.
 - Windows executable and signed iOS IPA have not been built.
 
 ## Generate platform runners and run on Windows
