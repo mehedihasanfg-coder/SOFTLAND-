@@ -1,6 +1,6 @@
-import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'payroll_calculator.dart';
 import 'payment_memo_calculator.dart';
 import 'business_reporting.dart';
+import 'records_storage.dart';
 
 void main() => runApp(const SoftlandApp());
 
@@ -147,6 +148,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   String current = 'Home';
   final Map<String, List<Record>> records = {};
+  final RecordsStorage storage = RecordsStorage();
   int selected = -1;
   bool loaded = false;
   DateTime? reportFrom;
@@ -158,25 +160,66 @@ class _MainShellState extends State<MainShell> {
     _load();
   }
 
+  Map<String, List<String>> _recordSchemas() => {
+    for (final section in menuItems.skip(1)) section: fieldsFor(section),
+  };
+
   Future<void> _load() async {
-    final p = await SharedPreferences.getInstance();
-    final raw = p.getString('softland_records');
-    if (raw != null) {
-      final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      for (final e in decoded.entries) {
-        records[e.key] = (e.value as List).map((x) =>
-          Record.fromJson(Map<String, dynamic>.from(x))).toList();
+    try {
+      final saved = await storage.load(_recordSchemas());
+      for (final entry in saved.entries) {
+        records[entry.key] = entry.value.map((values) => Record(values)).toList();
+      }
+      for (final section in menuItems.skip(1)) {
+        records.putIfAbsent(section, () => []);
+      }
+      if (mounted) setState(() => loaded = true);
+    } on StorageLocationException {
+      await _showStorageLocationError();
+    } catch (error) {
+      if (mounted) {
+        setState(() => loaded = true);
+        _snack('Unable to load SOFTLAND records: $error');
       }
     }
-    for (final m in menuItems.skip(1)) { records.putIfAbsent(m, () => []); }
-    if (mounted) setState(() => loaded = true);
   }
 
   Future<void> _save({bool notify = true}) async {
-    final p = await SharedPreferences.getInstance();
-    await p.setString('softland_records', jsonEncode(
-      records.map((k, v) => MapEntry(k, v.map((r) => r.toJson()).toList()))));
-    if (notify && mounted) _snack('Changes saved on this device.');
+    try {
+      final data = <String, List<Map<String, String>>>{
+        for (final entry in records.entries)
+          entry.key: entry.value.map((record) => record.values).toList(),
+      };
+      await storage.save(data, _recordSchemas());
+      if (notify && mounted) _snack('SOFTLAND CSV records saved.');
+    } on StorageLocationException {
+      await _showStorageLocationError();
+    } catch (error) {
+      if (mounted) _snack('Unable to save SOFTLAND records: $error');
+    }
+  }
+
+  Future<void> _showStorageLocationError() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Database location not found'),
+        content: const Text(StorageLocationException.message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      exit(1);
+    } else {
+      await SystemNavigator.pop();
+    }
   }
 
   void _snack(String s) => ScaffoldMessenger.of(context).showSnackBar(
