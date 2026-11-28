@@ -104,8 +104,12 @@ class RecordsStorage {
       }
       if (migrated || existingFiles.isEmpty) {
         await save(result, schemas, directory: directory);
-        await preferences.remove('softland_records');
       }
+      await preferences.remove('softland_records');
+    } else if (existingFiles.isEmpty) {
+      // Create the section CSVs on first launch so the SOFTLAND folder is
+      // immediately ready to open from Files or a spreadsheet application.
+      await save(result, schemas, directory: directory);
     }
 
     for (final section in schemas.keys) {
