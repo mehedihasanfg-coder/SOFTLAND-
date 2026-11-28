@@ -1006,6 +1006,9 @@ class _MainShellState extends State<MainShell> {
         final range = _defaultReportRange(item);
         reportFrom = range.start;
         reportTo = range.end;
+      } else {
+        reportFrom = null;
+        reportTo = null;
       }
     });
   }
