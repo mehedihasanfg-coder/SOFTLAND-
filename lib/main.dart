@@ -6,6 +6,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'payroll_calculator.dart';
+import 'payment_memo_calculator.dart';
+import 'business_reporting.dart';
 
 void main() => runApp(const SoftlandApp());
 
@@ -38,7 +40,7 @@ const paymentFields = [
   'Memo Number', 'Payment Date', 'Customer Name', 'Customer ID',
   'Project / Property', 'Plot / Flat', 'Total Price', 'Previous Paid',
   'Current Paid', 'Total Paid', 'Remaining Balance', 'Payment Method',
-  'Customer Signature', 'Authorized Signature', 'Received By', 'Remarks'
+  'Customer Signature', 'Authorized Signature', 'Company Stamp', 'Received By', 'Remarks'
 ];
 const incomeFields = [
   'Voucher Number', 'Date', 'Income Category', 'Received From',
@@ -118,8 +120,8 @@ class Record {
   String get date => values['Date'] ?? values['Payment Date'] ??
       values['Salary Month'] ?? values['Letter Date'] ??
       values['Date / Period'] ?? '';
-  String get amount => values['Net Payable'] ?? values['Payment Amount'] ??
-      values['Amount'] ?? values['Total Amount'] ?? '';
+  String get amount => values['Net Payable'] ?? values['Current Paid'] ??
+      values['Payment Amount'] ?? values['Amount'] ?? values['Total Amount'] ?? '';
   Map<String, dynamic> toJson() => {'values': values};
   factory Record.fromJson(Map<String, dynamic> j) {
     if (j['values'] is Map) {
@@ -147,6 +149,8 @@ class _MainShellState extends State<MainShell> {
   final Map<String, List<Record>> records = {};
   int selected = -1;
   bool loaded = false;
+  DateTime? reportFrom;
+  DateTime? reportTo;
 
   @override
   void initState() {
@@ -215,6 +219,12 @@ class _MainShellState extends State<MainShell> {
         final i = list.indexOf(record);
         if (i >= 0) { list[i] = Record(result); selected = i; }
       }
+      if (current == 'Customers Paying Memo') {
+        final rebuilt = PaymentMemoTotals.recalculateLedger(
+          list.map((memo) => memo.values).toList(),
+        );
+        records[current] = rebuilt.map((values) => Record(values)).toList();
+      }
     });
     await _save();
   }
@@ -236,26 +246,176 @@ class _MainShellState extends State<MainShell> {
         ],
       ));
     if (yes == true) {
-      setState(() { list.removeAt(selected); selected = -1; });
+      setState(() {
+        list.removeAt(selected);
+        selected = -1;
+        if (current == 'Customers Paying Memo') {
+          final rebuilt = PaymentMemoTotals.recalculateLedger(
+            list.map((memo) => memo.values).toList(),
+          );
+          records[current] = rebuilt.map((values) => Record(values)).toList();
+        }
+      });
       await _save();
     }
   }
 
+  DateTimeRange _defaultReportRange(String section) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (section == 'Weekly Report') {
+      final start = today.subtract(Duration(days: today.weekday - 1));
+      return DateTimeRange(start: start, end: start.add(const Duration(days: 6)));
+    }
+    if (section == 'Annual Report') {
+      return DateTimeRange(
+        start: DateTime(today.year, 1, 1),
+        end: DateTime(today.year, 12, 31),
+      );
+    }
+    return DateTimeRange(
+      start: DateTime(today.year, today.month, 1),
+      end: DateTime(today.year, today.month + 1, 0),
+    );
+  }
+
+  DateTimeRange _activeReportRange() {
+    final fallback = _defaultReportRange(
+      current.contains('Report') ? current : 'Monthly Report',
+    );
+    return DateTimeRange(
+      start: reportFrom ?? fallback.start,
+      end: reportTo ?? fallback.end,
+    );
+  }
+
+  List<Record> _recordsInPeriod(String section) {
+    final range = _activeReportRange();
+    return (records[section] ?? []).where((record) =>
+      BusinessReporting.isWithinPeriod(
+        record.values,
+        start: range.start,
+        end: range.end,
+      )).toList();
+  }
+
+  double _periodSum(String section, String amountField) {
+    final range = _activeReportRange();
+    final data = (records[section] ?? []).map((record) => record.values).toList();
+    return BusinessReporting.sumAmount(
+      data,
+      amountField: amountField,
+      start: range.start,
+      end: range.end,
+    );
+  }
+
+  double _customerOutstanding(Record customer) {
+    final customerId = (customer.values['Customer ID'] ?? '').trim();
+    final totalPrice = double.tryParse(
+      (customer.values['Total Price'] ?? '0').replaceAll(',', '').trim(),
+    ) ?? 0;
+    final ledger = (records['Customers Paying Memo'] ?? [])
+      .map((record) => record.values).toList();
+    final paid = PaymentMemoTotals.totalPaidForCustomer(
+      ledger: ledger,
+      customerId: customerId,
+    );
+    return totalPrice - paid;
+  }
+
   String _reportText() {
-    final all = records.values.expand((x) => x).toList();
-    double sum(String section, String key) => (records[section] ?? [])
-      .fold<double>(0, (a, r) => a + (double.tryParse(
-        (r.values[key] ?? '0').replaceAll(',', '')) ?? 0));
+    final range = _activeReportRange();
+    final income = _periodSum('Daily Income Vouchers', 'Amount');
+    final expenses = _periodSum('Daily Expense Vouchers', 'Amount');
+    final customerPayments = _periodSum('Customers Paying Memo', 'Current Paid');
+    final salaryPayable = _periodSum('Monthly Salary', 'Net Payable');
+    final outstanding = (records['Customers'] ?? []).fold<double>(
+      0, (sum, customer) => sum + _customerOutstanding(customer));
+    final transactions = _recordsInPeriod('Daily Income Vouchers').length +
+      _recordsInPeriod('Daily Expense Vouchers').length +
+      _recordsInPeriod('Customers Paying Memo').length +
+      _recordsInPeriod('Monthly Salary').length;
+    final periodLabel = DateFormat('dd MMM yyyy').format(range.start) +
+      ' — ' + DateFormat('dd MMM yyyy').format(range.end);
+
     return 'SOFTLAND BUSINESS SUMMARY\n'
       'Land, Real Estate & Developer Firm\n'
       'A symbol of reliance to fulfill your dreams\n\n'
-      'Employees: ${records['Employees']?.length ?? 0}\n'
-      'Customers: ${records['Customers']?.length ?? 0}\n'
-      'Income total: ৳${sum('Daily Income Vouchers', 'Amount').toStringAsFixed(2)}\n'
-      'Expense total: ৳${sum('Daily Expense Vouchers', 'Amount').toStringAsFixed(2)}\n'
-      'Salary payable total: ৳${sum('Monthly Salary', 'Net Payable').toStringAsFixed(2)}\n'
-      'Stored records: ${all.length}\n'
-      'Report: $current\nGenerated: ${DateFormat('dd MMM yyyy').format(DateTime.now())}';
+      'Report: $current\n'
+      'Period: $periodLabel\n\n'
+      'Employee profiles: \${records['Employees']?.length ?? 0}\n'
+      'Customer profiles: \${records['Customers']?.length ?? 0}\n'
+      'Transactions in period: $transactions\n\n'
+      'Daily income: ৳\${income.toStringAsFixed(2)}\n'
+      'Daily expenses: ৳\${expenses.toStringAsFixed(2)}\n'
+      'Net income less expenses: ৳\${(income - expenses).toStringAsFixed(2)}\n'
+      'Customer payments received: ৳\${customerPayments.toStringAsFixed(2)}\n'
+      'Salary payable: ৳\${salaryPayable.toStringAsFixed(2)}\n'
+      'Current customer outstanding: ৳\${outstanding.toStringAsFixed(2)}\n\n'
+      'Generated: \${DateFormat('dd MMM yyyy').format(DateTime.now())}';
+  }
+
+  Future<void> _pickReportDate({required bool chooseStart}) async {
+    final range = _activeReportRange();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: chooseStart ? range.start : range.end,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      if (chooseStart) {
+        reportFrom = DateTime(picked.year, picked.month, picked.day);
+        if (reportTo != null && reportTo!.isBefore(reportFrom!)) {
+          reportTo = reportFrom;
+        }
+      } else {
+        reportTo = DateTime(picked.year, picked.month, picked.day);
+        if (reportFrom != null && reportTo!.isBefore(reportFrom!)) {
+          reportFrom = reportTo;
+        }
+      }
+    });
+  }
+
+  void _resetReportRange() {
+    final range = _defaultReportRange(current);
+    setState(() {
+      reportFrom = range.start;
+      reportTo = range.end;
+    });
+  }
+
+  Widget _reportFilters() {
+    final range = _activeReportRange();
+    final dateFormat = DateFormat('dd MMM yyyy');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.center,
+        children: [
+          OutlinedButton.icon(
+            onPressed: () => _pickReportDate(chooseStart: true),
+            icon: const Icon(Icons.calendar_today, size: 16),
+            label: Text('From \${dateFormat.format(range.start)}'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () => _pickReportDate(chooseStart: false),
+            icon: const Icon(Icons.event, size: 16),
+            label: Text('To \${dateFormat.format(range.end)}'),
+          ),
+          TextButton.icon(
+            onPressed: _resetReportRange,
+            icon: const Icon(Icons.restart_alt, size: 16),
+            label: const Text('Reset period'),
+          ),
+        ],
+      ),
+    );
   }
 
   String _salaryValue(Record record, String field, [String fallback = '—']) {
@@ -501,6 +661,169 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
+  pw.Widget _buildPaymentMemo(Record r) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(18),
+      decoration: pw.BoxDecoration(
+        border: pw.Border.all(color: PdfColor.fromInt(0xFFB9C7D9), width: 1.1),
+      ),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          pw.Container(
+            padding: const pw.EdgeInsets.fromLTRB(12, 12, 12, 12),
+            color: PdfColor.fromInt(0xFF102D55),
+            child: pw.Row(
+              children: [
+                pw.Container(
+                  width: 42,
+                  height: 42,
+                  alignment: pw.Alignment.center,
+                  decoration: pw.BoxDecoration(
+                    shape: pw.BoxShape.circle,
+                    border: pw.Border.all(
+                      color: PdfColor.fromInt(0xFFFFFFFF), width: 1.5),
+                  ),
+                  child: pw.Text('S', style: pw.TextStyle(
+                    color: PdfColor.fromInt(0xFFFFFFFF),
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                  )),
+                ),
+                pw.SizedBox(width: 12),
+                pw.Expanded(child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('SOFTLAND', style: pw.TextStyle(
+                      color: PdfColor.fromInt(0xFFFFFFFF),
+                      fontSize: 21,
+                      fontWeight: pw.FontWeight.bold,
+                    )),
+                    pw.Text('LAND, REAL ESTATE & DEVELOPER FIRM',
+                      style: const pw.TextStyle(
+                        color: PdfColor.fromInt(0xFFE1EAF7), fontSize: 8)),
+                    pw.SizedBox(height: 3),
+                    pw.Text('A symbol of reliance to fulfill your dreams',
+                      style: const pw.TextStyle(
+                        color: PdfColor.fromInt(0xFFD4E3F8), fontSize: 7.5)),
+                  ],
+                )),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 12),
+          pw.Center(child: pw.Text('CUSTOMER PAYMENT MEMO',
+            style: pw.TextStyle(
+              fontSize: 15,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColor.fromInt(0xFF173F78),
+            ))),
+          pw.SizedBox(height: 8),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text('Memo No: \${_salaryValue(r, 'Memo Number')}',
+                style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+              pw.Text('Payment Date: \${_salaryValue(r, 'Payment Date')}',
+                style: const pw.TextStyle(fontSize: 9)),
+            ],
+          ),
+          _salarySectionTitle('Customer & property information'),
+          pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.Expanded(child: pw.Column(children: [
+              _salaryInfoCell('Customer name', _salaryValue(r, 'Customer Name')),
+              _salaryInfoCell('Customer ID', _salaryValue(r, 'Customer ID')),
+              _salaryInfoCell('Project / property', _salaryValue(r, 'Project / Property')),
+            ])),
+            pw.SizedBox(width: 12),
+            pw.Expanded(child: pw.Column(children: [
+              _salaryInfoCell('Plot / Flat', _salaryValue(r, 'Plot / Flat')),
+              _salaryInfoCell('Payment method', _salaryValue(r, 'Payment Method')),
+              _salaryInfoCell('Received by', _salaryValue(r, 'Received By')),
+            ])),
+          ]),
+          _salarySectionTitle('Payment statement'),
+          pw.TableHelper.fromTextArray(
+            headers: const ['Payment particulars', 'Amount (BDT)'],
+            data: [
+              ['Total property price', _money(r, 'Total Price')],
+              ['Previous paid', _money(r, 'Previous Paid')],
+              ['Current payment received', _money(r, 'Current Paid')],
+              ['Total paid to date', _money(r, 'Total Paid')],
+              ['Remaining balance', _money(r, 'Remaining Balance')],
+            ],
+            headerStyle: pw.TextStyle(
+              fontSize: 8,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColor.fromInt(0xFFFFFFFF),
+            ),
+            headerDecoration: pw.BoxDecoration(
+              color: PdfColor.fromInt(0xFF173F78)),
+            cellStyle: const pw.TextStyle(fontSize: 9),
+            cellPadding: const pw.EdgeInsets.symmetric(
+              horizontal: 8, vertical: 7),
+            border: pw.TableBorder(
+              horizontalInside: pw.BorderSide(
+                color: PdfColor.fromInt(0xFFDCE3ED), width: 0.5),
+              bottom: pw.BorderSide(
+                color: PdfColor.fromInt(0xFFDCE3ED), width: 0.5),
+            ),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(3),
+              1: const pw.FlexColumnWidth(1.4),
+            },
+            cellAlignments: {1: pw.Alignment.centerRight},
+          ),
+          if (_salaryValue(r, 'Remarks', '').isNotEmpty)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 8),
+              child: pw.Text('Remarks: \${_salaryValue(r, 'Remarks')}',
+                style: const pw.TextStyle(fontSize: 8)),
+            ),
+          pw.SizedBox(height: 28),
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              _signatureBlock('CUSTOMER SIGNATURE',
+                _salaryValue(r, 'Customer Signature', ''), 125),
+              _signatureBlock('AUTHORIZED SIGNATURE',
+                _salaryValue(r, 'Authorized Signature', ''), 125),
+              pw.Container(
+                width: 105,
+                height: 62,
+                padding: const pw.EdgeInsets.all(5),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColor.fromInt(0xFF9EACC0))),
+                child: pw.Column(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('COMPANY STAMP',
+                      style: pw.TextStyle(fontSize: 7,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColor.fromInt(0xFF52647A))),
+                    pw.Expanded(child: pw.Center(child: pw.Text(
+                      _salaryValue(r, 'Company Stamp', ''),
+                      textAlign: pw.TextAlign.center,
+                      style: const pw.TextStyle(fontSize: 8),
+                    ))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 14),
+          pw.Divider(color: PdfColor.fromInt(0xFFDCE3ED)),
+          pw.Center(child: pw.Text(
+            'Please retain this memo as proof of payment.',
+            style: const pw.TextStyle(
+              fontSize: 7.5, color: PdfColor.fromInt(0xFF718096))),
+          ),
+        ],
+      ),
+    );
+  }
+
   pw.Widget _attendanceCell(String label, String value) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(vertical: 7, horizontal: 4),
@@ -527,6 +850,25 @@ class _MainShellState extends State<MainShell> {
   }
 
   Future<void> _print() async {
+    if (current == 'Customers Paying Memo') {
+      final memoRecords = records[current] ?? [];
+      if (memoRecords.isEmpty) {
+        _snack('Add a customer payment memo before printing.');
+        return;
+      }
+      final chosen = selected >= 0 && selected < memoRecords.length
+        ? [memoRecords[selected]] : memoRecords;
+      final doc = pw.Document();
+      for (final memo in chosen) {
+        doc.addPage(pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(24),
+          build: (_) => _buildPaymentMemo(memo),
+        ));
+      }
+      await Printing.layoutPdf(onLayout: (_) async => doc.save());
+      return;
+    }
     if (current == 'Monthly Salary') {
       final salaryRecords = records[current] ?? [];
       if (salaryRecords.isEmpty) {
@@ -578,6 +920,33 @@ class _MainShellState extends State<MainShell> {
       return;
     }
     final list = records[current]!;
+    if (current == 'Customers Paying Memo' && selected >= 0 && selected < list.length) {
+      final r = list[selected];
+      final lines = <String>[
+        'SOFTLAND — CUSTOMER PAYMENT MEMO',
+        'Land, Real Estate & Developer Firm',
+        'A symbol of reliance to fulfill your dreams',
+        'Memo number: ${r.values['Memo Number'] ?? ''}',
+        'Payment date: ${r.values['Payment Date'] ?? ''}',
+        'Customer: ${r.values['Customer Name'] ?? ''}',
+        'Customer ID: ${r.values['Customer ID'] ?? ''}',
+        'Project / property: ${r.values['Project / Property'] ?? ''}',
+        'Plot / Flat: ${r.values['Plot / Flat'] ?? ''}',
+        'Total price: BDT ${r.values['Total Price'] ?? '0'}',
+        'Previous paid: BDT ${r.values['Previous Paid'] ?? '0'}',
+        'Current payment: BDT ${r.values['Current Paid'] ?? '0'}',
+        'Total paid: BDT ${r.values['Total Paid'] ?? '0'}',
+        'Remaining balance: BDT ${r.values['Remaining Balance'] ?? '0'}',
+        'Payment method: ${r.values['Payment Method'] ?? ''}',
+        'Received by: ${r.values['Received By'] ?? ''}',
+        'Customer signature: ${r.values['Customer Signature'] ?? ''}',
+        'Authorized signature: ${r.values['Authorized Signature'] ?? ''}',
+        'Company stamp: ${r.values['Company Stamp'] ?? ''}',
+        'Remarks: ${r.values['Remarks'] ?? ''}',
+      ];
+      await Share.share(lines.join('\\n'));
+      return;
+    }
     if (current == 'Monthly Salary' && selected >= 0 && selected < list.length) {
       final r = list[selected];
       final lines = <String>[
@@ -618,7 +987,15 @@ class _MainShellState extends State<MainShell> {
   }
   void _open(String item) {
     Navigator.of(context).maybePop();
-    setState(() { current = item; selected = -1; });
+    setState(() {
+      current = item;
+      selected = -1;
+      if (item.contains('Report')) {
+        final range = _defaultReportRange(item);
+        reportFrom = range.start;
+        reportTo = range.end;
+      }
+    });
   }
 
   @override
@@ -786,9 +1163,12 @@ class _MainShellState extends State<MainShell> {
             _action('Share', Icons.share_outlined, const Color(0xFF25849C), _share),
           ])),
       const Divider(),
-      if (report) Padding(padding: const EdgeInsets.all(12),
-        child: Card(child: Padding(padding: const EdgeInsets.all(16),
-          child: Text(_reportText(), style: const TextStyle(height: 1.6))))),
+      if (report) ...[
+        _reportFilters(),
+        Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+          child: Card(child: Padding(padding: const EdgeInsets.all(16),
+            child: Text(_reportText(), style: const TextStyle(height: 1.6))))),
+      ],
       Padding(padding: const EdgeInsets.all(12),
         child: Row(children: [
           Expanded(child: Text(current, style: const TextStyle(
@@ -796,7 +1176,7 @@ class _MainShellState extends State<MainShell> {
           Text('${list.length} records',
             style: const TextStyle(color: Colors.blueGrey)),
         ])),
-      Expanded(child: list.isEmpty ? Center(child: Column(
+      Expanded(child: report ? const SizedBox.shrink() : list.isEmpty ? Center(child: Column(
         mainAxisSize: MainAxisSize.min, children: [
           Icon(_iconFor(current), size: 54, color: Colors.blueGrey.shade200),
           const SizedBox(height: 10), Text('No $current records yet.'),
@@ -808,7 +1188,9 @@ class _MainShellState extends State<MainShell> {
           itemCount: list.length, itemBuilder: (ctx, i) {
             final r = list[i];
             final subtitle = [
-              r.date, r.values['Details'] ?? r.values['Project / Property'] ?? '',
+              r.date,
+              r.values['Details'] ?? r.values['Project / Property'] ?? '',
+              r.values['Plot / Flat'] ?? '',
             ].where((x) => x.isNotEmpty).join(' • ');
             return Card(color: selected == i
               ? const Color(0xFFE5EEFF) : Colors.white,
@@ -818,8 +1200,19 @@ class _MainShellState extends State<MainShell> {
                 title: Text(r.title, style: const TextStyle(
                   fontWeight: FontWeight.w600)),
                 subtitle: Text(subtitle),
-                trailing: Text(r.amount.isEmpty ? '' : '৳${r.amount}',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                trailing: current == 'Customers'
+                  ? SizedBox(width: 112, child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text('Outstanding', style: TextStyle(
+                          fontSize: 10, color: Colors.blueGrey)),
+                        Text('৳${_customerOutstanding(r).toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ))
+                  : Text(r.amount.isEmpty ? '' : '৳${r.amount}',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
               ));
           })),
     ]);
@@ -919,6 +1312,9 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
       if (widget.initial.isEmpty) {
         controllers['Memo Number']!.text = _nextMemoNumber();
       }
+      if (controllers['Payment Date']!.text.trim().isEmpty) {
+        controllers['Payment Date']!.text = DateFormat('dd MMM yyyy').format(DateTime.now());
+      }
       _recalculateMemo();
     }
   }
@@ -951,10 +1347,22 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
 
   void _recalculateMemo() {
     if (!memo) return;
-    final paid = _n('Previous Paid') + _n('Current Paid');
-    final balance = _n('Total Price') - paid;
-    controllers['Total Paid']!.text = paid.toStringAsFixed(2);
-    controllers['Remaining Balance']!.text = balance.toStringAsFixed(2);
+    final customerId = controllers['Customer ID']!.text.trim();
+    final ledger = widget.existingMemos.map((record) => record.values).toList();
+    final memoNumber = controllers['Memo Number']!.text.trim();
+    final previous = PaymentMemoTotals.previousPaidFromLedger(
+      ledger: ledger,
+      customerId: customerId,
+      stopBeforeMemoNumber: widget.initial.isNotEmpty ? memoNumber : null,
+    );
+    final totals = PaymentMemoTotals.calculate(
+      totalPrice: _n('Total Price'),
+      previousPaid: previous,
+      currentPaid: _n('Current Paid'),
+    );
+    controllers['Previous Paid']!.text = totals.previousPaid.toStringAsFixed(2);
+    controllers['Total Paid']!.text = totals.totalPaid.toStringAsFixed(2);
+    controllers['Remaining Balance']!.text = totals.remainingBalance.toStringAsFixed(2);
   }
 
   void _fillEmployee(Record employee) {
@@ -1057,7 +1465,7 @@ class _RecordFormDialogState extends State<RecordFormDialog> {
     }
     if (employeeForm && field == 'Employee ID') return true;
     if (customerForm && field == 'Customer ID') return true;
-    if (memo && (field == 'Memo Number' ||
+    if (memo && (field == 'Memo Number' || field == 'Previous Paid' ||
         field == 'Total Paid' || field == 'Remaining Balance')) {
       return true;
     }
