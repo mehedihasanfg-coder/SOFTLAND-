@@ -344,16 +344,16 @@ class _MainShellState extends State<MainShell> {
       'A symbol of reliance to fulfill your dreams\n\n'
       'Report: $current\n'
       'Period: $periodLabel\n\n'
-      'Employee profiles: \${records['Employees']?.length ?? 0}\n'
-      'Customer profiles: \${records['Customers']?.length ?? 0}\n'
+      'Employee profiles: ${records['Employees']?.length ?? 0}\n'
+      'Customer profiles: ${records['Customers']?.length ?? 0}\n'
       'Transactions in period: $transactions\n\n'
-      'Daily income: ৳\${income.toStringAsFixed(2)}\n'
-      'Daily expenses: ৳\${expenses.toStringAsFixed(2)}\n'
-      'Net income less expenses: ৳\${(income - expenses).toStringAsFixed(2)}\n'
-      'Customer payments received: ৳\${customerPayments.toStringAsFixed(2)}\n'
-      'Salary payable: ৳\${salaryPayable.toStringAsFixed(2)}\n'
-      'Current customer outstanding: ৳\${outstanding.toStringAsFixed(2)}\n\n'
-      'Generated: \${DateFormat('dd MMM yyyy').format(DateTime.now())}';
+      'Daily income: ৳${income.toStringAsFixed(2)}\n'
+      'Daily expenses: ৳${expenses.toStringAsFixed(2)}\n'
+      'Net income less expenses: ৳${(income - expenses).toStringAsFixed(2)}\n'
+      'Customer payments received: ৳${customerPayments.toStringAsFixed(2)}\n'
+      'Salary payable: ৳${salaryPayable.toStringAsFixed(2)}\n'
+      'Current customer outstanding: ৳${outstanding.toStringAsFixed(2)}\n\n'
+      'Generated: ${DateFormat('dd MMM yyyy').format(DateTime.now())}';
   }
 
   Future<void> _pickReportDate({required bool chooseStart}) async {
@@ -401,12 +401,12 @@ class _MainShellState extends State<MainShell> {
           OutlinedButton.icon(
             onPressed: () => _pickReportDate(chooseStart: true),
             icon: const Icon(Icons.calendar_today, size: 16),
-            label: Text('From \${dateFormat.format(range.start)}'),
+            label: Text('From ${dateFormat.format(range.start)}'),
           ),
           OutlinedButton.icon(
             onPressed: () => _pickReportDate(chooseStart: false),
             icon: const Icon(Icons.event, size: 16),
-            label: Text('To \${dateFormat.format(range.end)}'),
+            label: Text('To ${dateFormat.format(range.end)}'),
           ),
           TextButton.icon(
             onPressed: _resetReportRange,
@@ -722,9 +722,9 @@ class _MainShellState extends State<MainShell> {
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Text('Memo No: \${_salaryValue(r, 'Memo Number')}',
+              pw.Text('Memo No: ${_salaryValue(r, 'Memo Number')}',
                 style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-              pw.Text('Payment Date: \${_salaryValue(r, 'Payment Date')}',
+              pw.Text('Payment Date: ${_salaryValue(r, 'Payment Date')}',
                 style: const pw.TextStyle(fontSize: 9)),
             ],
           ),
@@ -777,7 +777,7 @@ class _MainShellState extends State<MainShell> {
           if (_salaryValue(r, 'Remarks', '').isNotEmpty)
             pw.Padding(
               padding: const pw.EdgeInsets.only(top: 8),
-              child: pw.Text('Remarks: \${_salaryValue(r, 'Remarks')}',
+              child: pw.Text('Remarks: ${_salaryValue(r, 'Remarks')}',
                 style: const pw.TextStyle(fontSize: 8)),
             ),
           pw.SizedBox(height: 28),
@@ -944,7 +944,7 @@ class _MainShellState extends State<MainShell> {
         'Company stamp: ${r.values['Company Stamp'] ?? ''}',
         'Remarks: ${r.values['Remarks'] ?? ''}',
       ];
-      await Share.share(lines.join('\\n'));
+      await Share.share(lines.join('\n'));
       return;
     }
     if (current == 'Monthly Salary' && selected >= 0 && selected < list.length) {
