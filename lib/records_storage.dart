@@ -140,10 +140,13 @@ class RecordsStorage {
   }
 
   List<Map<String, String>> _decode(String contents) {
-    if (contents.trim().isEmpty) return [];
+    final normalized = contents.startsWith('\uFEFF')
+        ? contents.substring(1)
+        : contents;
+    if (normalized.trim().isEmpty) return [];
     final rows = const CsvToListConverter(
       shouldParseNumbers: false,
-    ).convert(contents);
+    ).convert(normalized);
     if (rows.isEmpty) return [];
 
     final headers = rows.first.map((value) => value.toString()).toList();
