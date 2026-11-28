@@ -35,6 +35,17 @@ void main() {
     );
   });
 
+
+  test('legacy cumulative memo values are converted to one payment amount', () {
+    final legacy = {
+      'Customer ID': 'C1',
+      'Previous Paid': '100',
+      'Total Paid': '150',
+    };
+
+    expect(PaymentMemoTotals.currentPaidForRecord(legacy), 50);
+  });
+
   test('memo totals calculate total paid and remaining balance', () {
     final totals = PaymentMemoTotals.calculate(
       totalPrice: 500000,
