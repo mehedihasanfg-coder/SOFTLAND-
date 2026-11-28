@@ -14,6 +14,14 @@ class PaymentMemoTotals {
   static double _read(String? value) =>
       double.tryParse((value ?? '0').replaceAll(',', '').trim()) ?? 0;
 
+  static double currentPaidForRecord(Map<String, String> memo) {
+    final currentText = memo['Current Paid'];
+    if (currentText != null && currentText.trim().isNotEmpty) {
+      return _read(currentText);
+    }
+    return _read(memo['Total Paid']) - _read(memo['Previous Paid']);
+  }
+
   /// Reads payments for one customer up to (but not including) an edited memo.
   /// The ledger order is the saved memo order; later entries are never counted
   /// as "previous paid" when an earlier memo is edited.
@@ -32,14 +40,7 @@ class PaymentMemoTotals {
       }
       if ((memo['Customer ID'] ?? '').trim() != customerId.trim()) continue;
 
-      final currentText = memo['Current Paid'];
-      if (currentText != null && currentText.trim().isNotEmpty) {
-        paid += _read(currentText);
-      } else {
-        // Backward compatibility for older records that only stored the
-        // cumulative total and the previous-paid amount.
-        paid += _read(memo['Total Paid']) - _read(memo['Previous Paid']);
-      }
+      paid += currentPaidForRecord(memo);
     }
     return paid;
   }
@@ -75,10 +76,7 @@ class PaymentMemoTotals {
       if (customerId.isEmpty) return memo;
 
       final previous = runningPaid[customerId] ?? 0;
-      final currentText = memo['Current Paid'];
-      final current = currentText != null && currentText.trim().isNotEmpty
-          ? _read(currentText)
-          : _read(memo['Total Paid']) - _read(memo['Previous Paid']);
+      final current = currentPaidForRecord(memo);
       final total = previous + current;
       final balance = _read(memo['Total Price']) - total;
 
