@@ -49,6 +49,16 @@ Test coverage includes:
 - iOS Files visibility requires the `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace` keys described in `docs/ios_files_app_setup.md`. The iOS runner folder has not yet been generated in this repository.
 - Windows executable and signed iOS IPA have not been built.
 
+## Windows database-drive preflight
+
+Before a future Windows installer installs SOFTLAND, it should run this check and abort if the script returns a non-zero exit code:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\check_database_drive.ps1
+```
+
+The script checks D: first, then E: through Z:, never C:. It displays the exact one-button error if no writable non-C drive exists. The script is committed but is not yet integrated into a finished SOFTLAND_Setup.exe.
+
 ## Generate platform runners and run on Windows
 
 This repository currently contains the shared Flutter source but does not yet include generated Windows/iOS runner folders. On a machine with Flutter installed, run this once from the repository root:
