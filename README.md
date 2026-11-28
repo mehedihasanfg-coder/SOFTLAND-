@@ -27,11 +27,11 @@ Flutter cross-platform application for Windows 10/11 and iPhone 12 (iOS), follow
 
 ## Tests added
 
-test/payroll_calculator_test.dart covers:
-- Attendance does not reduce Basic Salary.
-- Manual overtime and all specified salary components are included.
-- Advance and Deduction are subtracted from Total Amount.
-- Comma-separated monetary values are parsed.
+Test coverage includes:
+
+- `test/payroll_calculator_test.dart`: attendance does not reduce Basic Salary; manual overtime and all specified salary components are included; Advance and Deduction are subtracted; comma-separated monetary values are parsed.
+- `test/payment_memo_calculator_test.dart`: customer-specific previous-payment carry-forward; editing an earlier memo excludes later payments from its previous-paid amount; total and remaining balance calculations; recalculation of later ledger entries; legacy memo compatibility.
+- `test/business_reporting_test.dart`: supported date formats, inclusive report boundaries and date-filtered amount totals.
 
 ## Current limitations
 
