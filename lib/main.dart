@@ -319,18 +319,21 @@ class _MainShellState extends State<MainShell> {
     );
   }
 
-  double _customerOutstanding(Record customer) {
+  double _customerPaidTotal(Record customer) {
     final customerId = (customer.values['Customer ID'] ?? '').trim();
-    final totalPrice = double.tryParse(
-      (customer.values['Total Price'] ?? '0').replaceAll(',', '').trim(),
-    ) ?? 0;
     final ledger = (records['Customers Paying Memo'] ?? [])
       .map((record) => record.values).toList();
-    final paid = PaymentMemoTotals.totalPaidForCustomer(
+    return PaymentMemoTotals.totalPaidForCustomer(
       ledger: ledger,
       customerId: customerId,
     );
-    return totalPrice - paid;
+  }
+
+  double _customerOutstanding(Record customer) {
+    final totalPrice = double.tryParse(
+      (customer.values['Total Price'] ?? '0').replaceAll(',', '').trim(),
+    ) ?? 0;
+    return totalPrice - _customerPaidTotal(customer);
   }
 
   String _reportText() {
@@ -1210,13 +1213,13 @@ class _MainShellState extends State<MainShell> {
                   fontWeight: FontWeight.w600)),
                 subtitle: Text(subtitle),
                 trailing: current == 'Customers'
-                  ? SizedBox(width: 112, child: Column(
+                  ? SizedBox(width: 126, child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        const Text('Outstanding', style: TextStyle(
-                          fontSize: 10, color: Colors.blueGrey)),
-                        Text('৳${_customerOutstanding(r).toStringAsFixed(2)}',
+                        Text('Paid ৳${_customerPaidTotal(r).toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
+                        Text('Due ৳${_customerOutstanding(r).toStringAsFixed(2)}',
                           style: const TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ))
