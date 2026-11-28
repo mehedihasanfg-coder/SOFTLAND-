@@ -302,6 +302,15 @@ class _MainShellState extends State<MainShell> {
   double _periodSum(String section, String amountField) {
     final range = _activeReportRange();
     final data = (records[section] ?? []).map((record) => record.values).toList();
+    final inPeriod = BusinessReporting.filterRecords(
+      data,
+      start: range.start,
+      end: range.end,
+    );
+    if (section == 'Customers Paying Memo' && amountField == 'Current Paid') {
+      return inPeriod.fold<double>(0, (sum, memo) =>
+        sum + PaymentMemoTotals.currentPaidForRecord(memo));
+    }
     return BusinessReporting.sumAmount(
       data,
       amountField: amountField,
