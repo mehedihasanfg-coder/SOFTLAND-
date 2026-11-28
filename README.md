@@ -8,7 +8,7 @@ Flutter cross-platform application for Windows 10/11 and iPhone 12 (iOS), follow
 - Left navigation drawer with all 12 requested sections and a close action.
 - Common Add, Edit, Remove, Save, Print and Share toolbar on every data section.
 - Section-based CSV persistence: Employees.csv, Customers.csv, Customers_Paying_Memo.csv, Monthly_Salary.csv, Daily_Income_Vouchers.csv, Daily_Expense_Vouchers.csv, Letterheads.csv and Contact_Information.csv, plus report-section CSV files.
-- Windows storage uses D:\\SOFTLAND first, then the first writable non-C drive from E: through Z:. The app never writes business records to C:. If no non-C drive is writable, it shows the required one-button error and closes after OK.
+- Windows storage uses `D:\SOFTLAND` first, then the first writable non-C drive from E: through Z:. The app never writes business records to C:. If no non-C drive is writable, it shows the required one-button error and closes after OK.
 - iPhone storage uses the app Documents/SOFTLAND folder. Enable the two iOS file-sharing Info.plist keys in the setup guide so the CSVs appear in Files and can be opened with iSpreadsheet.
 - Existing SharedPreferences records are migrated once into CSV files; ongoing business records are no longer saved to SharedPreferences.
 - Employee profile limit: 10.
